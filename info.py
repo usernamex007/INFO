@@ -1,7 +1,7 @@
 import asyncio
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.tl.functions.messages import GetParticipantsRequest
+from telethon.tl.functions.channels import GetParticipants
 from telethon.tl.types import ChannelParticipantsRecent
 from telethon.errors import UsernameInvalidError, UsernameNotOccupiedError
 
@@ -14,15 +14,16 @@ BOT_TOKEN = "7589052839:AAGPMVeZpb63GEG_xXzQEua1q9ewfNzTg50"  # अपना ब
 SUPPORT_CHANNEL = "https://t.me/SANATANI_TECJ"
 SUPPORT_GROUP = "https://t.me/SANATANI_SUPPORT"
 
+
 # Telethon Client Setup
 bot = TelegramClient("bot_session", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
-# Start Command
+# /start Command
 @bot.on(events.NewMessage(pattern="/start"))
 async def start(event):
     buttons = [
         [Button.inline("🔍 Get Info", data="get_info")],
-        [Button.url("📢 Channel", SUPPORT_CHANNEL), Button.url("💬 Group", SUPPORT_GROUP)]
+        [Button.url("📢 Support Channel", SUPPORT_CHANNEL), Button.url("💬 Support Group", SUPPORT_GROUP)]
     ]
 
     await event.respond(
@@ -64,7 +65,7 @@ async def get_channel_info(event):
                 break
 
         # Joined Users की List निकालें
-        participants = await bot(GetParticipantsRequest(entity, ChannelParticipantsRecent(), offset=0, limit=10, hash=0))
+        participants = await bot(GetParticipants(entity, ChannelParticipantsRecent(), offset=0, limit=10, hash=0))
         user_list = "\n".join([f"🔹 {u.first_name} ({'@' + u.username if u.username else 'No Username'})" for u in participants.users])
 
         info_text = (
