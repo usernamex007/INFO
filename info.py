@@ -1,8 +1,6 @@
 import asyncio
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.tl.functions.channels import GetParticipants
-from telethon.tl.types import ChannelParticipantsRecent
 from telethon.errors import UsernameInvalidError, UsernameNotOccupiedError
 
 # Telegram API Details (अपनी API ID और API HASH डालें)
@@ -13,7 +11,6 @@ BOT_TOKEN = "7589052839:AAGPMVeZpb63GEG_xXzQEua1q9ewfNzTg50"  # अपना ब
 # Support Links
 SUPPORT_CHANNEL = "https://t.me/SANATANI_TECJ"
 SUPPORT_GROUP = "https://t.me/SANATANI_SUPPORT"
-
 
 # Telethon Client Setup
 bot = TelegramClient("bot_session", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
@@ -57,16 +54,19 @@ async def get_channel_info(event):
         creator_id = "Unknown"
 
         # Creator की Details निकालें
-        for user in full_info.users:
-            if user.id == entity.creator_id:
-                creator = user.first_name + (" " + user.last_name if user.last_name else "")
-                creator_username = "@" + user.username if user.username else "No Username"
-                creator_id = user.id
-                break
+        if full_info.full_chat.creator_id:
+            creator_id = full_info.full_chat.creator_id
+            creator_user = await bot.get_entity(creator_id)
+            creator = creator_user.first_name + (" " + creator_user.last_name if creator_user.last_name else "")
+            creator_username = "@" + creator_user.username if creator_user.username else "No Username"
 
-        # Joined Users की List निकालें
-        participants = await bot(GetParticipants(entity, ChannelParticipantsRecent(), offset=0, limit=10, hash=0))
-        user_list = "\n".join([f"🔹 {u.first_name} ({'@' + u.username if u.username else 'No Username'})" for u in participants.users])
+        # Participants Count
+        participants_count = full_info.full_chat.participants_count if hasattr(full_info.full_chat, 'participants_count') else 'Unknown'
+
+        # Joined Users की List निकालें (Latest 10 Members)
+        users = await bot.get_participants(entity)
+        latest_users = users[:10] if len(users) > 10 else users
+        user_list = "\n".join([f"🔹 {u.first_name} ({'@' + u.username if u.username else 'No Username'})" for u in latest_users])
 
         info_text = (
             f"🔹 **Channel/Group Name:** `{entity.title}`\n"
@@ -75,7 +75,7 @@ async def get_channel_info(event):
             f"🔹 **Creator ID:** `{creator_id}`\n"
             f"🔹 **Creation Date:** `{entity.date}`\n"
             f"🔹 **ID:** `{entity.id}`\n"
-            f"🔹 **Participants Count:** `{entity.participants_count if hasattr(entity, 'participants_count') else 'Unknown'}`\n\n"
+            f"🔹 **Participants Count:** `{participants_count}`\n\n"
             f"👥 **Recent 10 Users:**\n{user_list if user_list else 'No Users Found'}"
         )
 
