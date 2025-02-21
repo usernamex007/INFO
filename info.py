@@ -30,7 +30,7 @@ async def handle_actions(client: Client, query: CallbackQuery):
     except Exception as e:
         await query.answer(f"❌ एरर: {e}", show_alert=True)
 
-# ✅ **Admin Panel (Ban, Mute, Warn, Info)**
+# ✅ **Admin Panel (Ban, Mute, Warn, Profile)**
 @app.on_message(filters.command("adminpanel") & filters.group)
 async def admin_panel(client, message):
     if not message.reply_to_message:
@@ -45,7 +45,8 @@ async def admin_panel(client, message):
             InlineKeyboardButton("🔇 Mute", callback_data=f"action_mute_{user.id}")
         ],
         [
-            InlineKeyboardButton("⚠️ Warn", callback_data=f"action_warn_{user.id}")
+            InlineKeyboardButton("⚠️ Warn", callback_data=f"action_warn_{user.id}"),
+            InlineKeyboardButton("👤 Info", callback_data=f"action_info_{user.id}")
         ],
         [
             InlineKeyboardButton("🔍 Profile", url=f"https://t.me/{user.username}") if user.username else InlineKeyboardButton("❌ कोई यूजरनेम नहीं", callback_data="no_username")
@@ -55,13 +56,17 @@ async def admin_panel(client, message):
     await message.reply_text(f"🔧 <b>मॉडरेशन पैनल</b> - {user.mention}", reply_markup=buttons, parse_mode="html")
 
 # ✅ **User Full Information (Fixes)**
-@app.on_message(filters.command("info") & filters.group)
-async def user_info(client, message):
-    user = message.reply_to_message.from_user if message.reply_to_message else message.from_user
-    chat_id = message.chat.id
-    chat_member = await client.get_chat_member(chat_id, user.id)
+@app.on_callback_query(filters.regex(r"action_info_(\d+)"))
+async def user_info(client, query: CallbackQuery):
+    user_id = int(query.matches[0].group(1))
+    chat_id = query.message.chat.id
+    chat_member = await client.get_chat_member(chat_id, user_id)
+    user = chat_member.user
 
-    is_muted = (chat_member.status == ChatMemberStatus.RESTRICTED and chat_member.privileges and not chat_member.privileges.can_send_messages)
+    is_muted = (
+        chat_member.status == ChatMemberStatus.RESTRICTED and
+        chat_member.privileges and not chat_member.privileges.can_send_messages
+    )
 
     warnings = 0  # चेतावनियों की संख्या (डेमो के लिए)
 
@@ -76,33 +81,9 @@ async def user_info(client, message):
         f"⏳ Join Date: {chat_member.joined_date.strftime('%Y-%m-%d %H:%M:%S') if hasattr(chat_member, 'joined_date') and chat_member.joined_date else 'Unknown'}\n"
     )
 
-    await message.reply_text(text)
+    await query.message.reply_text(text)
 
-# ✅ **Bot Run**
-print("🤖 Bot is running...")
-app.run()async def admin_panel(client, message):
-    user = message.reply_to_message.from_user if message.reply_to_message else None
-
-    if not user:
-        await message.reply_text("❌ कृपया पहले किसी यूजर को रिप्लाई करें।")
-        return
-
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🚫 Ban", callback_data=f"ban_{user.id}"),
-            InlineKeyboardButton("🔇 Mute", callback_data=f"mute_{user.id}")
-        ],
-        [
-            InlineKeyboardButton("⚠️ Warn", callback_data=f"warn_{user.id}"),
-            InlineKeyboardButton("👤 Info", callback_data=f"info_{user.id}")
-        ],
-        [
-            InlineKeyboardButton("🔍 Profile", url=f"https://t.me/{user.username}") if user.username else InlineKeyboardButton("❌ कोई यूजरनेम नहीं", callback_data="no_username")
-        ]
-    ])
-
-    await message.reply_text(f"🔧 <b>मॉडरेशन पैनल</b> - {user.mention}", reply_markup=buttons, parse_mode="html")
-
-# ✅ **बॉट रन करें**
-print("🤖 Bot is running...")
-app.run()
+# ✅ **Bot Run (एरर फिक्स)**
+if __name__ == "__main__":
+    print("🤖 Bot is running...")
+    app.run()
