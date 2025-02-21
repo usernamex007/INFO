@@ -1,92 +1,135 @@
-import asyncio
-from telethon import TelegramClient, events, Button
-from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.errors import UsernameInvalidError, UsernameNotOccupiedError
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatPermissions
+from pyrogram.enums import ChatMemberStatus
 
-# Telegram API Details (अपनी API ID और API HASH डालें)
-API_ID = 28795512  # अपना API ID डालें
-API_HASH = "c17e4eb6d994c9892b8a8b6bfea4042a"  # अपना API HASH डालें
-BOT_TOKEN = "7589052839:AAGPMVeZpb63GEG_xXzQEua1q9ewfNzTg50"  # अपना बॉट टोकन डालें
+# बॉट की डिटेल्स
+API_ID = 28795512  # अपने Telegram API ID से बदलें
+API_HASH = "c17e4eb6d994c9892b8a8b6bfea4042a"  # अपने Telegram API Hash से बदलें
+BOT_TOKEN = "7589052839:AAGPMVeZpb63GEG_xXzQEua1q9ewfNzTg50"  # अपने Bot Token से बदलें
 
-# Support Links
-SUPPORT_CHANNEL = "https://t.me/SANATANI_TECJ"
-SUPPORT_GROUP = "https://t.me/SANATANI_SUPPORT"
+app = Client("moderation_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# Telethon Client Setup
-bot = TelegramClient("bot_session", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+# ✅ **Permission Checker**
+def is_admin(_, __, message):
+    chat_member = app.get_chat_member(message.chat.id, message.from_user.id)
+    return chat_member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
 
-# /start Command
-@bot.on(events.NewMessage(pattern="/start"))
-async def start(event):
-    buttons = [
-        [Button.inline("🔍 Get Info", data="get_info")],
-        [Button.url("📢 Support Channel", SUPPORT_CHANNEL), Button.url("💬 Support Group", SUPPORT_GROUP)]
-    ]
+# ✅ **Ban User**
+@app.on_callback_query(filters.regex("ban_(\\d+)"))
+async def ban_user(client, callback_query):
+    user_id = int(callback_query.matches[0].group(1))
+    chat_id = callback_query.message.chat.id
 
-    await event.respond(
-        "**👋 Welcome to Telegram Info Bot!**\n\n"
-        "➤ इस बॉट से आप किसी भी **Telegram Group या Channel** की पूरी जानकारी निकाल सकते हैं।\n"
-        "➤ बस **Get Info** बटन दबाएं और Username दें।\n\n"
-        "🔥 **Features:**\n"
-        "✅ Group/Channel Name\n"
-        "✅ Owner (Creator) Name & Username\n"
-        "✅ Creation Date\n"
-        "✅ Participants Count\n"
-        "✅ Latest 10 Joined Users\n\n"
-        "👇 नीचे बटन से शुरू करें!",
-        buttons=buttons
+    try:
+        await client.ban_chat_member(chat_id, user_id)
+        await callback_query.answer("🚫 यूजर को बैन कर दिया गया!", show_alert=True)
+    except Exception as e:
+        await callback_query.answer(f"❌ एरर: {e}", show_alert=True)
+
+# ✅ **Mute User**
+@app.on_callback_query(filters.regex("mute_(\\d+)"))
+async def mute_user(client, callback_query):
+    user_id = int(callback_query.matches[0].group(1))
+    chat_id = callback_query.message.chat.id
+
+    try:
+        await client.restrict_chat_member(chat_id, user_id, ChatPermissions(can_send_messages=False))
+        await callback_query.answer("🔇 यूजर म्यूट कर दिया गया!", show_alert=True)
+    except Exception as e:
+        await callback_query.answer(f"❌ एरर: {e}", show_alert=True)
+
+# ✅ **Warn User**
+@app.on_callback_query(filters.regex("warn_(\\d+)"))
+async def warn_user(client, callback_query):
+    user_id = int(callback_query.matches[0].group(1))
+    chat_id = callback_query.message.chat.id
+
+    try:
+        warning_text = f"⚠️ चेतावनी: <a href='tg://user?id={user_id}'>यह यूजर</a> नियम तोड़ रहा है!"
+        await client.send_message(chat_id, warning_text, parse_mode="html")
+        await callback_query.answer("⚠️ यूजर को चेतावनी दी गई!", show_alert=True)
+    except Exception as e:
+        await callback_query.answer(f"❌ एरर: {e}", show_alert=True)
+
+# ✅ **Go to Profile Button**
+@app.on_message(filters.command("profile") & filters.group)
+async def profile_button(client, message):
+    user = message.reply_to_message.from_user if message.reply_to_message else message.from_user
+    button = InlineKeyboardMarkup([
+        [InlineKeyboardButton("👤 प्रोफाइल पर जाएं", url=f"https://t.me/{user.username}") if user.username else InlineKeyboardButton("❌ यूजरनेम उपलब्ध नहीं", callback_data="no_username")]
+    ])
+    
+    await message.reply_text("🔗 प्रोफाइल लिंक:", reply_markup=button)
+
+# ✅ **Check Permissions**
+@app.on_message(filters.command("permissions") & filters.group)
+async def check_permissions(client, message):
+    chat_id = message.chat.id
+    user_id = message.reply_to_message.from_user.id if message.reply_to_message else message.from_user.id
+
+    try:
+        member = await client.get_chat_member(chat_id, user_id)
+        perms = member.privileges if member.status in ["administrator", "creator"] else None
+        text = f"👤 <b>यूजर:</b> {member.user.mention}\n\n🔹 <b>परमिशन:</b> {perms}" if perms else "❌ यह यूजर एक सामान्य सदस्य है।"
+        await message.reply_text(text, parse_mode="html")
+    except Exception as e:
+        await message.reply_text(f"❌ एरर: {e}")
+
+# ✅ **User Full Information**
+@app.on_message(filters.command("info") & filters.group)
+async def user_info(client, message):
+    if message.reply_to_message:
+        user = message.reply_to_message.from_user
+    else:
+        user = message.from_user
+
+    chat_id = message.chat.id
+    chat_member = await client.get_chat_member(chat_id, user.id)
+
+    # चेक करें कि यूजर म्यूटेड है या नहीं
+    is_muted = chat_member.privileges and not chat_member.privileges.can_send_messages if chat_member.status == ChatMemberStatus.RESTRICTED else False
+
+    # चेतावनियों की संख्या (डेमो के लिए 0)
+    warnings = 0  
+
+    text = (
+        "📜 User Full Information 📜\n\n"
+        f"🆔 ID: {user.id}\n"
+        f"🐱 Name: {user.first_name or 'No Name'}\n"
+        f"🌍 Username: @{user.username if user.username else 'No username'}\n"
+        f"👀 Situation: {'Admin' if chat_member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] else 'Member'}\n"
+        f"⚠️ Warnings: {warnings}/3\n"
+        f"🔇 Muted: {'Yes' if is_muted else 'No'}\n"
+        f"⏳ Join Date: {chat_member.joined_date.strftime('%Y-%m-%d %H:%M:%S') if chat_member.joined_date else 'Unknown'}\n"
     )
 
-# Callback for "Get Info" Button
-@bot.on(events.CallbackQuery(data="get_info"))
-async def ask_for_username(event):
-    await event.respond("📌 **Please enter the username of the Channel/Group (without @):**")
+    await message.reply_text(text)
 
-# Info Command
-@bot.on(events.NewMessage(pattern="^[^/].+"))  # कोई भी Normal Text पर Trigger होगा
-async def get_channel_info(event):
-    username = event.raw_text.strip()
-    try:
-        entity = await bot.get_entity(username)
-        full_info = await bot(GetFullChannelRequest(entity))
-        creator = "Unknown"
-        creator_username = "Unknown"
-        creator_id = "Unknown"
+# ✅ **Admin Panel (Buttons)**
+@app.on_message(filters.command("adminpanel") & filters.group & filters.create(is_admin))
+async def admin_panel(client, message):
+    user = message.reply_to_message.from_user if message.reply_to_message else None
 
-        # Creator की Details निकालें
-        if full_info.full_chat.creator_id:
-            creator_id = full_info.full_chat.creator_id
-            creator_user = await bot.get_entity(creator_id)
-            creator = creator_user.first_name + (" " + creator_user.last_name if creator_user.last_name else "")
-            creator_username = "@" + creator_user.username if creator_user.username else "No Username"
+    if not user:
+        await message.reply_text("❌ कृपया पहले किसी यूजर को रिप्लाई करें।")
+        return
 
-        # Participants Count
-        participants_count = full_info.full_chat.participants_count if hasattr(full_info.full_chat, 'participants_count') else 'Unknown'
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🚫 Ban", callback_data=f"ban_{user.id}"),
+            InlineKeyboardButton("🔇 Mute", callback_data=f"mute_{user.id}")
+        ],
+        [
+            InlineKeyboardButton("⚠️ Warn", callback_data=f"warn_{user.id}"),
+            InlineKeyboardButton("👤 Info", callback_data=f"info_{user.id}")
+        ],
+        [
+            InlineKeyboardButton("🔍 Profile", url=f"https://t.me/{user.username}") if user.username else InlineKeyboardButton("❌ कोई यूजरनेम नहीं", callback_data="no_username")
+        ]
+    ])
 
-        # Joined Users की List निकालें (Latest 10 Members)
-        users = await bot.get_participants(entity)
-        latest_users = users[:10] if len(users) > 10 else users
-        user_list = "\n".join([f"🔹 {u.first_name} ({'@' + u.username if u.username else 'No Username'})" for u in latest_users])
+    await message.reply_text(f"🔧 <b>मॉडरेशन पैनल</b> - {user.mention}", reply_markup=buttons, parse_mode="html")
 
-        info_text = (
-            f"🔹 **Channel/Group Name:** `{entity.title}`\n"
-            f"🔹 **Creator Name:** `{creator}`\n"
-            f"🔹 **Creator Username:** {creator_username}\n"
-            f"🔹 **Creator ID:** `{creator_id}`\n"
-            f"🔹 **Creation Date:** `{entity.date}`\n"
-            f"🔹 **ID:** `{entity.id}`\n"
-            f"🔹 **Participants Count:** `{participants_count}`\n\n"
-            f"👥 **Recent 10 Users:**\n{user_list if user_list else 'No Users Found'}"
-        )
-
-        await event.respond(info_text)
-
-    except UsernameInvalidError:
-        await event.respond("❌ Invalid Username!")
-    except UsernameNotOccupiedError:
-        await event.respond("❌ Username not found!")
-    except Exception as e:
-        await event.respond(f"❌ Error: {e}")
-
-print("✅ Bot is Running...")
-bot.run_until_disconnected()
+# ✅ **बॉट रन करें**
+print("🤖 Bot is running...")
+app.run()
